@@ -347,5 +347,66 @@ async def embed_create(
     except discord.Forbidden:
         await interaction.response.send_message("❌ ما قدرت أرسل بهذا الروم — تأكد من صلاحيات البوت.", ephemeral=True)
 
+REVIEWS_CHANNEL_ID = 1513286580456919151
+
+class RateModal(discord.ui.Modal, title="تقييم المنتج"):
+    rating = discord.ui.TextInput(label="التقييم (من 1 إلى 5)", placeholder="5", max_length=1, required=True)
+    comment = discord.ui.TextInput(label="التعليق", style=discord.TextStyle.paragraph, placeholder="خدمة ممتازة...", required=True)
+
+    def __init__(self, seller: discord.Member, buyer: discord.Member):
+        super().__init__()
+        self.seller = seller
+        self.buyer = buyer
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            stars_count = int(self.rating.value)
+            stars_count = max(1, min(5, stars_count))
+        except ValueError:
+            stars_count = 5
+
+        stars = "⭐" * stars_count
+
+        embed = discord.Embed(
+            description=(
+                f"تم ارسال هذا التقييم من: **({self.buyer.mention}) {self.buyer.name}**\n\n"
+                f"📦 **البائع:** ({self.seller.mention}) {self.seller.name}\n\n"
+                f"**التقييم:** {stars}\n\n"
+                f"💬 **التعليق:**\n{self.comment.value}"
+            ),
+            color=discord.Color.gold()
+        )
+        embed.set_footer(text="نظام التقييمات")
+
+        reviews_channel = bot.get_channel(REVIEWS_CHANNEL_ID)
+        if reviews_channel:
+            await reviews_channel.send(embed=embed)
+            await interaction.response.send_message("✅ شكراً على تقييمك!", ephemeral=True)
+        else:
+            await interaction.response.send_message("⚠️ ما قدرت ألقى روم التقييمات، تأكد من الإعدادات.", ephemeral=True)
+
+
+class RateView(discord.ui.View):
+    def __init__(self, seller: discord.Member, buyer: discord.Member):
+        super().__init__(timeout=None)
+        self.seller = seller
+        self.buyer = buyer
+
+    @discord.ui.button(label="اضغط لتقييم المنتج", style=discord.ButtonStyle.green, emoji="⭐")
+    async def rate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.buyer.id:
+            await interaction.response.send_message("❌ هذا التقييم مخصص لشخص ثاني، مو لك.", ephemeral=True)
+            return
+        await interaction.response.send_modal(RateModal(self.seller, self.buyer))
+
+
+@bot.tree.command(name="rate", description="طلب تقييم من المشتري")
+async def rate(interaction: discord.Interaction, buyer: discord.Member):
+    view = RateView(seller=interaction.user, buyer=buyer)
+    await interaction.response.send_message(
+        f"{buyer.mention} 👋 يرجى الضغط على الزر تحت لتقييم عملية الشراء",
+        view=view
+    )
+
 # ============ تشغيل البوت (لازم يضل آخر شي بالملف) ============
 bot.run(TOKEN)
