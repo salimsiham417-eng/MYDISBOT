@@ -40,6 +40,9 @@ def is_owner(user_id: int) -> bool:
 # ============ منع التكرار ============
 processing_messages = set()
 
+# ============ رسالة ترحيب التذاكر (تُرسل مرة وحدة لكل قناة) ============
+ticket_greeted_channels = set()
+
 # ============ حدث الإقلاع ============
 @bot.event
 async def on_ready():
@@ -53,7 +56,7 @@ async def on_ready():
     except Exception as e:
         print(f"⚠️ خطأ بمزامنة الأوامر: {e}")
 
-# ============ حدث الرسائل (منع التكرار) ============
+# ============ حدث الرسائل (منع التكرار + ترحيب التذاكر) ============
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -61,7 +64,16 @@ async def on_message(message):
     if message.id in processing_messages:
         return
     processing_messages.add(message.id)
+
     try:
+        if (
+            message.guild is not None
+            and message.channel.name.lower().startswith("ticket")
+            and message.channel.id not in ticket_greeted_channels
+        ):
+            ticket_greeted_channels.add(message.channel.id)
+            await message.channel.send("تفضل معك طاقم العمل الرجاء تقديم طلبك بوضوح وانتظار الرد ✅")
+
         await bot.process_commands(message)
     finally:
         processing_messages.discard(message.id)
