@@ -354,10 +354,11 @@ class RateModal(discord.ui.Modal, title="تقييم عملية الشراء"):
     rating = discord.ui.TextInput(label="التقييم (من 1 إلى 5)", placeholder="5", max_length=1, required=True)
     comment = discord.ui.TextInput(label="التعليق", style=discord.TextStyle.paragraph, placeholder="اكتب رأيك بالخدمة...", required=True, max_length=300)
 
-    def __init__(self, seller: discord.Member, buyer: discord.Member, view: "RateView"):
+    def __init__(self, seller: discord.Member, buyer: discord.Member, product: str, view: "RateView"):
         super().__init__()
         self.seller = seller
         self.buyer = buyer
+        self.product = product
         self.rate_view = view
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -370,14 +371,15 @@ class RateModal(discord.ui.Modal, title="تقييم عملية الشراء"):
         stars = STAR_EMOJI * stars_count
 
         embed = discord.Embed(
-            title=f"{STAR_EMOJI} تقييم جديد",
+            description=(
+                f"تم ارسال هذا التقييم من: **({self.buyer.mention}) {self.buyer.name}**\n\n"
+                f"📦 **البائع:** ({self.seller.mention}) {self.seller.name}\n\n"
+                f"🛍️ **نوع المنتج:** {self.product}\n\n"
+                f"**التقييم:** {stars}\n\n"
+                f"💬 **التعليق:**\n{self.comment.value}"
+            ),
             color=discord.Color.from_rgb(255, 215, 0)
         )
-        embed.set_author(name=self.buyer.name, icon_url=self.buyer.display_avatar.url)
-        embed.add_field(name="👤 المشتري", value=self.buyer.mention, inline=True)
-        embed.add_field(name="📦 البائع", value=self.seller.mention, inline=True)
-        embed.add_field(name="التقييم", value=stars, inline=False)
-        embed.add_field(name="💬 التعليق", value=self.comment.value, inline=False)
         embed.set_footer(text="نظام التقييمات • MAYBE STORE")
         embed.timestamp = discord.utils.utcnow()
 
@@ -388,24 +390,24 @@ class RateModal(discord.ui.Modal, title="تقييم عملية الشراء"):
         else:
             await interaction.response.send_message("⚠️ ما قدرت ألقى روم التقييمات.", ephemeral=True)
 
-        # تعطيل الزر بعد الاستخدام (مرة وحدة بس)
         self.rate_view.rate_button.disabled = True
         self.rate_view.rate_button.label = "تم التقييم مسبقاً ✅"
         await interaction.message.edit(view=self.rate_view)
 
 
 class RateView(discord.ui.View):
-    def __init__(self, seller: discord.Member, buyer: discord.Member):
+    def __init__(self, seller: discord.Member, buyer: discord.Member, product: str):
         super().__init__(timeout=None)
         self.seller = seller
         self.buyer = buyer
+        self.product = product
 
     @discord.ui.button(label="اضغط لتقييم المنتج", style=discord.ButtonStyle.success, emoji="⭐")
     async def rate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.buyer.id:
             await interaction.response.send_message("❌ هذا التقييم مخصص لشخص ثاني، مو لك.", ephemeral=True)
             return
-        await interaction.response.send_modal(RateModal(self.seller, self.buyer, self))
+        await interaction.response.send_modal(RateModal(self.seller, self.buyer, self.product, self))
 
 
 def build_rate_embed(buyer: discord.Member):
@@ -415,13 +417,13 @@ def build_rate_embed(buyer: discord.Member):
     )
 
 @bot.command(name="rate")
-async def rate_prefix(ctx, buyer: discord.Member):
-    view = RateView(seller=ctx.author, buyer=buyer)
+async def rate_prefix(ctx, buyer: discord.Member, *, product: str):
+    view = RateView(seller=ctx.author, buyer=buyer, product=product)
     await ctx.send(embed=build_rate_embed(buyer), view=view)
 
 @bot.tree.command(name="rate", description="طلب تقييم من المشتري")
-async def rate(interaction: discord.Interaction, buyer: discord.Member):
-    view = RateView(seller=interaction.user, buyer=buyer)
+async def rate(interaction: discord.Interaction, buyer: discord.Member, product: str):
+    view = RateView(seller=interaction.user, buyer=buyer, product=product)
     await interaction.response.send_message(embed=build_rate_embed(buyer), view=view)
 
 # ============ تشغيل البوت (لازم يضل آخر شي بالملف) ============
