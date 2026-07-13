@@ -519,11 +519,17 @@ def build_rate_embed(buyer: discord.Member):
 
 @bot.command(name="rate")
 async def rate_prefix(ctx, buyer: discord.Member, *, product: str):
+    if not is_owner(ctx.author.id):
+        await ctx.send("❌ ما عندك صلاحية تستخدم هذا الأمر.")
+        return
     view = RateView(seller=ctx.author, buyer=buyer, product=product)
     await ctx.send(embed=build_rate_embed(buyer), view=view)
 
 @bot.tree.command(name="rate", description="طلب تقييم من المشتري")
 async def rate(interaction: discord.Interaction, buyer: discord.Member, product: str):
+    if not is_owner(interaction.user.id):
+        await interaction.response.send_message("❌ ما عندك صلاحية تستخدم هذا الأمر.", ephemeral=True)
+        return
     view = RateView(seller=interaction.user, buyer=buyer, product=product)
     await interaction.response.send_message(embed=build_rate_embed(buyer), view=view)
 
