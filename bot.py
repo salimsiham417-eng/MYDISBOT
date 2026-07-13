@@ -11,7 +11,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 OWNERS_FILE = "owners.json"
 UPDATES_ROLE_ID = 1510783082926571580  # الرول اللي يختاره اللاعب بنفسه
 REVIEWS_CHANNEL_ID = 1513286580456919151
-STAR_EMOJI = "<:goldstar:1526020537338564628>"
+STAR_EMOJI = "⭐"
 
 intents = discord.Intents.default()
 intents.members = True
@@ -349,10 +349,10 @@ async def embed_create(
     except discord.Forbidden:
         await interaction.response.send_message("❌ ما قدرت أرسل بهذا الروم — تأكد من صلاحيات البوت.", ephemeral=True)
 
-# ============ نظام التقييمات: /rate ============
+# ============ نظام التقييمات: +rate و /rate ============
 class RateModal(discord.ui.Modal, title="تقييم عملية الشراء"):
     rating = discord.ui.TextInput(label="التقييم (من 1 إلى 5)", placeholder="5", max_length=1, required=True)
-    comment = discord.ui.TextInput(label="التعليق", style=discord.TextStyle.paragraph, placeholder="اكتب رأيك بالخدمة...", required=True)
+    comment = discord.ui.TextInput(label="التعليق", style=discord.TextStyle.paragraph, placeholder="اكتب رأيك بالخدمة...", required=True, max_length=300)
 
     def __init__(self, seller: discord.Member, buyer: discord.Member, view: "RateView"):
         super().__init__()
@@ -408,14 +408,21 @@ class RateView(discord.ui.View):
         await interaction.response.send_modal(RateModal(self.seller, self.buyer, self))
 
 
-@bot.tree.command(name="rate", description="طلب تقييم من المشتري")
-async def rate(interaction: discord.Interaction, buyer: discord.Member):
-    view = RateView(seller=interaction.user, buyer=buyer)
-    embed = discord.Embed(
+def build_rate_embed(buyer: discord.Member):
+    return discord.Embed(
         description=f"{buyer.mention} 👋 شكراً لثقتك فينا!\nنتمنى منك تقييم عملية الشراء بالضغط على الزر تحت.",
         color=discord.Color.from_rgb(255, 215, 0)
     )
-    await interaction.response.send_message(embed=embed, view=view)
+
+@bot.command(name="rate")
+async def rate_prefix(ctx, buyer: discord.Member):
+    view = RateView(seller=ctx.author, buyer=buyer)
+    await ctx.send(embed=build_rate_embed(buyer), view=view)
+
+@bot.tree.command(name="rate", description="طلب تقييم من المشتري")
+async def rate(interaction: discord.Interaction, buyer: discord.Member):
+    view = RateView(seller=interaction.user, buyer=buyer)
+    await interaction.response.send_message(embed=build_rate_embed(buyer), view=view)
 
 # ============ تشغيل البوت (لازم يضل آخر شي بالملف) ============
 bot.run(TOKEN)
