@@ -11,6 +11,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 OWNERS_FILE = "owners.json"
 UPDATES_ROLE_ID = 1510783082926571580  # الرول اللي يختاره اللاعب بنفسه
 REVIEWS_CHANNEL_ID = 1513286580456919151
+STAFF_ROLE_ID = 1514980224415170732  # رول الطاقم
 STAR_EMOJI = "⭐"
 
 intents = discord.Intents.default()
@@ -56,7 +57,7 @@ async def on_ready():
     except Exception as e:
         print(f"⚠️ خطأ بمزامنة الأوامر: {e}")
 
-# ============ حدث الرسائل (منع التكرار + ترحيب التذاكر) ============
+# ============ حدث الرسائل (منع التكرار + ترحيب التذاكر مع منشن الطاقم) ============
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -72,7 +73,14 @@ async def on_message(message):
             and message.channel.id not in ticket_greeted_channels
         ):
             ticket_greeted_channels.add(message.channel.id)
-            await message.channel.send("تفضل معك طاقم العمل الرجاء تقديم طلبك بوضوح وانتظار الرد ✅")
+            
+            # منشن رول الطاقم
+            staff_role = message.guild.get_role(STAFF_ROLE_ID)
+            staff_mention = staff_role.mention if staff_role else "الطاقم"
+            
+            await message.channel.send(
+                f"{staff_mention} تفضل معك طاقم العمل الرجاء تقديم طلبك بوضوح وانتظار الرد ✅"
+            )
 
         await bot.process_commands(message)
     finally:
@@ -438,5 +446,5 @@ async def rate(interaction: discord.Interaction, buyer: discord.Member, product:
     view = RateView(seller=interaction.user, buyer=buyer, product=product)
     await interaction.response.send_message(embed=build_rate_embed(buyer), view=view)
 
-# ============ تشغيل البوت (لازم يضل آخر شي بالملف) ============
+# ============ تشغيل البوت ============
 bot.run(TOKEN)
