@@ -49,15 +49,13 @@ processing_messages = set()
 # ============ نظام الإغلاق التلقائي للتذاكر ============
 ticket_timers = {}
 ticket_auto_close_active = {}
-ticket_owners = {}  # لتخزين صاحب التذكرة
+ticket_owners = {}
 
 async def close_ticket(channel, reason="لعدم وجود رد"):
     """إغلاق التذكرة ونقلها للكاتيجوري المخصص"""
     try:
-        # الحصول على صاحب التذكرة
         ticket_owner_id = ticket_owners.get(channel.id)
         
-        # إرسال رسالة إغلاق
         embed = discord.Embed(
             title="🔒 تم إغلاق التذكرة",
             description=f"**سبب الإغلاق:** {reason}",
@@ -68,31 +66,22 @@ async def close_ticket(channel, reason="لعدم وجود رد"):
         
         await channel.send(embed=embed)
         
-        # إزالة صلاحية صاحب التذكرة
         if ticket_owner_id:
             ticket_owner = channel.guild.get_member(ticket_owner_id)
             if ticket_owner:
                 await channel.set_permissions(ticket_owner, view_channel=False)
         
-        # الحصول على الكاتيجوري المخصصة
         closed_category = channel.guild.get_channel(CLOSED_CATEGORY_ID)
         
         if closed_category:
-            # استخراج رقم التذكرة من اسم القناة
             ticket_number = channel.name.replace("ticket-", "").replace("closed-", "")
-            
-            # نقل القناة للكاتيجوري المغلقة
             await channel.edit(category=closed_category)
-            
-            # تغيير اسم القناة
             new_name = f"closed-{ticket_number}"
             await channel.edit(name=new_name)
-            
             await channel.send(f"📁 **تم نقل التذكرة إلى أرشيف التذاكر المغلقة**")
         else:
             await channel.send("⚠️ **لم يتم العثور على كاتيجوري التذاكر المغلقة**")
         
-        # حذف البيانات
         if channel.id in ticket_timers:
             del ticket_timers[channel.id]
         if channel.id in ticket_auto_close_active:
@@ -169,34 +158,6 @@ async def on_message(message):
     processing_messages.add(message.id)
 
     try:
-        # أمر +gt لتفعيل الإغلاق التلقائي
-        if message.content.lower().startswith("+gt"):
-            if not is_owner(message.author.id):
-                await message.channel.send("❌ ما عندك صلاحية تستخدم هذا الأمر.")
-                return
-            
-            if not message.channel.name.lower().startswith("ticket"):
-                await message.channel.send("❌ هذه القناة ليست تذكرة.")
-                return
-            
-            # تخزين صاحب التذكرة (اول منشئ للقناة)
-            if message.channel.id not in ticket_owners:
-                # محاولة العثور على صاحب التذكرة من صلاحيات القناة
-                for overwrite in message.channel.overwrites:
-                    if isinstance(overwrite, discord.Member) and not overwrite.bot:
-                        if message.channel.overwrites[overwrite].view_channel:
-                            ticket_owners[message.channel.id] = overwrite.id
-                            break
-            
-            await start_auto_close(message.channel)
-            await message.channel.send(f"✅ **تم تفعيل الإغلاق التلقائي.** سوف تغلق التذكرة خلال {AUTO_CLOSE_MINUTES} دقيقة من عدم الرد.")
-            
-            try:
-                await message.delete()
-            except:
-                pass
-            return
-        
         # إلغاء الإغلاق التلقائي عند أي رسالة في التذكرة
         if message.guild is not None and message.channel.name.lower().startswith("ticket-"):
             if message.channel.id in ticket_auto_close_active:
@@ -565,59 +526,6 @@ async def rate_prefix(ctx, buyer: discord.Member, *, product: str):
 async def rate(interaction: discord.Interaction, buyer: discord.Member, product: str):
     view = RateView(seller=interaction.user, buyer=buyer, product=product)
     await interaction.response.send_message(embed=build_rate_embed(buyer), view=view)
-
-# ============ أوامر التحكم بالتذاكر ============
-@bot.command(name="close")
-async def close_ticket_cmd(ctx):
-    """إغلاق التذكرة يدوياً"""
-    if not is_owner(ctx.author.id):
-        await ctx.send("❌ ما عندك صلاحية.")
-        return
-    if not ctx.channel.name.lower().startswith("ticket-"):
-        await ctx.send("❌ هذه القناة ليست تذكرة.")
-        return
-    await close_ticket(ctx.channel, "إغلاق يدوي بواسطة الإدارة")
-    await ctx.send("🔒 **جاري إغلاق التذكرة...**")
-
-@bot.tree.command(name="close", description="إغلاق التذكرة")
-async def slash_close(interaction: discord.Interaction):
-    if not is_owner(interaction.user.id):
-        await interaction.response.send_message("❌ ما عندك صلاحية.", ephemeral=True)
-        return
-    if not interaction.channel.name.lower().startswith("ticket-"):
-        await interaction.response.send_message("❌ هذه القناة ليست تذكرة.", ephemeral=True)
-        return
-    await close_ticket(interaction.channel, "إغلاق يدوي بواسطة الإدارة")
-    await interaction.response.send_message("🔒 **جاري إغلاق التذكرة...**", ephemeral=True)
-
-@bot.command(name="cancelclose")
-async def cancel_close_cmd(ctx):
-    """إلغاء الإغلاق التلقائي للتذكرة"""
-    if not is_owner(ctx.author.id):
-        await ctx.send("❌ ما عندك صلاحية.")
-        return
-    if ctx.channel.id in ticket_timers:
-        ticket_timers[ctx.channel.id].cancel()
-        del ticket_timers[ctx.channel.id]
-        if ctx.channel.id in ticket_auto_close_active:
-            del ticket_auto_close_active[ctx.channel.id]
-        await ctx.send("✅ تم إلغاء الإغلاق التلقائي.")
-    else:
-        await ctx.send("⚠️ لا يوجد مؤقت إغلاق لهذه التذكرة.")
-
-@bot.tree.command(name="cancelclose", description="إلغاء الإغلاق التلقائي للتذكرة")
-async def slash_cancel_close(interaction: discord.Interaction):
-    if not is_owner(interaction.user.id):
-        await interaction.response.send_message("❌ ما عندك صلاحية.", ephemeral=True)
-        return
-    if interaction.channel.id in ticket_timers:
-        ticket_timers[interaction.channel.id].cancel()
-        del ticket_timers[interaction.channel.id]
-        if interaction.channel.id in ticket_auto_close_active:
-            del ticket_auto_close_active[interaction.channel.id]
-        await interaction.response.send_message("✅ تم إلغاء الإغلاق التلقائي.", ephemeral=True)
-    else:
-        await interaction.response.send_message("⚠️ لا يوجد مؤقت إغلاق لهذه التذكرة.", ephemeral=True)
 
 # ============ تشغيل البوت ============
 bot.run(TOKEN)
